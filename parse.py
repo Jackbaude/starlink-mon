@@ -2,6 +2,9 @@ import csv
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from datetime import datetime
+import pandas as pd
 
 # Define a dataclass for each row entry
 @dataclass
@@ -69,27 +72,76 @@ for measurement_type, records in data.items():
 
 
 #TODO fix plots
+
 def plot_measurements(data):
     for measurement_type, records in data.items():
-        # Extract timestamps and values for plotting
-        timestamps = [record.timestamp for record in records]
+        # Convert timestamps to datetime objects with the correct format
+        timestamps = [
+            datetime.strptime(record.timestamp, '%Y-%m-%dT%H:%M:%SZ') 
+            for record in records
+        ]
         values = [record.value for record in records]
         
-        # Convert timestamps to a suitable format if necessary
-        # For simplicity, we assume timestamps are in a format directly usable
-        plt.figure(figsize=(10, 5))
-        plt.plot(timestamps, values, marker='o', linestyle='-')
+        # Create a DataFrame for easier manipulation
+        df = pd.DataFrame({"timestamp": timestamps, "value": values})
         
+        # Apply a rolling mean to smooth data (e.g., window of 5)
+        plt.figure(figsize=(12, 6))
+        plt.plot(df['timestamp'], df['value'], color="blue", alpha=0.4, label="Original Value")
+
         # Customize the plot
         plt.title(f"{measurement_type} Over Time")
-        plt.xlabel("Timestamp")
+        plt.xlabel("Minute")
         plt.ylabel("Value")
         plt.xticks(rotation=45)
-        plt.grid(True)
-        
-        # Save or show the plot
-        plt.tight_layout()
-        plt.savefig(f"{measurement_type}.png")  # Save as a PNG file
-        plt.show()  # Display the plot
+        plt.grid(True, linestyle='--', alpha=0.7)
 
-# plot_measurements(data)
+        # Set x-axis to show minutes only
+        plt.gca().xaxis.set_major_locator(mdates.MinuteLocator())
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%M'))
+
+        # Add legend and save the plot
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{measurement_type}_cleaned.png")
+        plt.show()
+
+plot_measurements(data)
+
+def calculate_statistics(data):
+    # Dictionary to store statistics for each measurement type
+    stats = {}
+
+    for measurement_type, records in data.items():
+        # Extract values for calculation
+        values = [record.value for record in records]
+
+        # Calculate statistics
+        mean_value = sum(values) / len(values) if values else float('nan')
+        median_value = sorted(values)[len(values) // 2] if values else float('nan')
+        std_dev = (sum((x - mean_value) ** 2 for x in values) / len(values)) ** 0.5 if values else float('nan')
+        min_value = min(values) if values else float('nan')
+        max_value = max(values) if values else float('nan')
+        count = len(values)
+
+        # Store the results in a dictionary
+        stats[measurement_type] = {
+            "Mean": mean_value,
+            "Median": median_value,
+            "Standard Deviation": std_dev,
+            "Minimum": min_value,
+            "Maximum": max_value,
+            "Count": count
+        }
+
+    return stats
+
+# Usage example
+statistics = calculate_statistics(data)
+
+# Print the statistics for each measurement type
+for measurement_type, stats in statistics.items():
+    print(f"Statistics for {measurement_type}:")
+    for stat_name, stat_value in stats.items():
+        print(f"\t{stat_name}: {stat_value}")
+    print()
